@@ -56,7 +56,8 @@ CI #1은 이 라벨 유무를 확인해 온보딩 이슈가 아닌 일반 이슈
 | `dev_domain` | dev 도메인 (예: `my-service-api-dev.wafflestudio.com`) |
 | `image_name` | OCIR 이미지 이름 (예: `my-service-prod/my-service-server`) |
 | `secret_keys` | 환경변수 키 목록 (**값은 인프라팀 DM으로 전달**) |
-| `db_name` | DB 이름 — CI #2 MySQL 생성용, 매니페스트에는 미포함 |
+| `db_name_prod` | Prod DB 이름 — CI #2 MySQL 생성용, 매니페스트에는 미포함 |
+| `db_name_dev` | Dev DB 이름 — CI #2 MySQL 생성용, 매니페스트에는 미포함 |
 
 > 프레임워크·포트·헬스체크 경로는 CI #1에서 `repo_url` 레포를 클론해 코드에서 자동 파악합니다.
 > 시크릿 **값**은 이슈에 작성하지 않습니다. 인프라팀이 DM으로 받아 Vault에 별도 등록합니다.
@@ -66,9 +67,8 @@ CI #1은 이 라벨 유무를 확인해 온보딩 이슈가 아닌 일반 이슈
 CI가 Elice API를 호출할 때 넘기는 프롬프트 파일입니다.
 
 구성:
-1. **역할 지시**: Kubernetes 매니페스트 생성 전문가
-2. **온보딩 가이드 전문 삽입**: `docs/onboarding-to-oci.md` 전체 내용
-3. **Few-shot 예시**: 기존 서비스 파일 1~2개 (예: `argocd/airbnb-prod/`, `argocd/moiming-prod/`)
+1. **역할 지시 및 온보딩 규칙**: Kubernetes 매니페스트 생성 전문가, 규칙·주의사항 전체 포함
+2. **Few-shot 예시**: 기존 서비스 파일 1~2개 (예: `argocd/airbnb-prod/`, `argocd/moiming-prod/`)
 4. **출력 형식 지정**:
 ```
 
@@ -147,7 +147,7 @@ jobs:
 
 1. `ISSUE_BODY` 파싱 (GitHub form YAML → dict)
 2. `repo_url` 레포 클론 → 주요 파일 읽기 (`pom.xml`, `build.gradle`, `requirements.txt`, `package.json`, `application.yml` 등)으로 프레임워크·포트·헬스체크 경로 파악
-3. `.github/prompts/manifest-generation.md` + `docs/onboarding-to-oci.md` 읽기
+3. `.github/prompts/manifest-generation.md` 읽기
 4. Few-shot 예시 파일 읽기
 5. Elice API 호출 (이슈 데이터 + 코드 분석 결과 포함)
 6. 응답에서 `--- FILE: path ---` 구분자로 파일 분리

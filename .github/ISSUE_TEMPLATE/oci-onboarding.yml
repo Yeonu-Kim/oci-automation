@@ -1,0 +1,87 @@
+name: OCI 온보딩 요청
+description: 신규 서비스를 OCI 클러스터에 온보딩합니다.
+title: "[Onboarding] "
+labels: [onboarding]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        OCI 온보딩을 요청합니다. 아래 항목을 모두 작성해 주세요.
+        시크릿 **값**은 이슈에 작성하지 않습니다. 키 이름만 작성하고, 값은 인프라팀에 DM으로 전달해 주세요.
+
+  - type: input
+    id: team
+    attributes:
+      label: 팀 이름
+      description: 서비스 영문명 소문자 kebab-case
+      placeholder: "my-service"
+    validations:
+      required: true
+
+  - type: input
+    id: repo_url
+    attributes:
+      label: GitHub 레포지토리 URL
+      description: 서버 레포지토리의 GitHub URL
+      placeholder: "https://github.com/wafflestudio/my-service-server"
+    validations:
+      required: true
+
+  - type: input
+    id: prod_domain
+    attributes:
+      label: Prod 도메인
+      description: 운영 환경 도메인
+      placeholder: "my-service-api.wafflestudio.com"
+    validations:
+      required: true
+
+  - type: input
+    id: dev_domain
+    attributes:
+      label: Dev 도메인
+      description: 개발 환경 도메인
+      placeholder: "my-service-api-dev.wafflestudio.com"
+    validations:
+      required: true
+
+  - type: input
+    id: image_name
+    attributes:
+      label: OCIR 이미지 이름
+      description: OCI Container Registry에 push할 이미지 이름
+      placeholder: "my-service-prod/my-service-server"
+    validations:
+      required: true
+
+  - type: textarea
+    id: secret_keys
+    attributes:
+      label: 시크릿 키 목록
+      description: |
+        환경변수 키 이름만 작성해 주세요. 값은 인프라팀에 DM으로 전달해 주세요.
+        한 줄에 하나씩 작성합니다.
+      placeholder: |
+        DATABASE_URL
+        JWT_SECRET
+        REDIS_URL
+    validations:
+      required: false
+
+  - type: input
+    id: db_name_prod
+    attributes:
+      label: Prod DB 이름
+      description: 운영 환경 MySQL DB 이름. DB가 필요 없으면 비워 두세요.
+      placeholder: "my-service-prod"
+    validations:
+      required: false
+
+  - type: input
+    id: db_name_dev
+    attributes:
+      label: Dev DB 이름
+      description: 개발 환경 MySQL DB 이름. DB가 필요 없으면 비워 두세요.
+      placeholder: "my-service-dev"
+    validations:
+      required: false
