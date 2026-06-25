@@ -55,6 +55,7 @@ CI #1은 이 라벨 유무를 확인해 온보딩 이슈가 아닌 일반 이슈
 | `prod_domain` | prod 도메인 (예: `my-service-api.wafflestudio.com`) |
 | `dev_domain` | dev 도메인 (예: `my-service-api-dev.wafflestudio.com`) |
 | `image_name` | OCIR 이미지 이름 (예: `my-service-prod/my-service-server`) |
+| `use_valkey` | Valkey 사용 여부 (`Yes` / `No`) — `Yes`이면 `{team}-valkey.yaml` 생성 |
 | `secret_keys` | 환경변수 키 목록 (**값은 인프라팀 DM으로 전달**) |
 | `db_name_prod` | Prod DB 이름 — CI #2 MySQL 생성용, 매니페스트에는 미포함 |
 | `db_name_dev` | Dev DB 이름 — CI #2 MySQL 생성용, 매니페스트에는 미포함 |
@@ -86,6 +87,7 @@ CI가 Elice API를 호출할 때 넘기는 프롬프트 파일입니다.
 - `resources.limits.cpu` 일반 서버에는 지정하지 않음
 - `revisionHistoryLimit: 4` 설정
 - 시크릿 키 이름이 있으면 `{team}-secret.yaml` 생성 (값은 placeholder)
+- `use_valkey: Yes`이면 dev/prod 양쪽에 `{team}-valkey.yaml` 생성 (StatefulSet + ClusterIP Service, `sidecar.istio.io/inject: "false"` 어노테이션 필수)
 - prod VirtualService에 `X-Forwarded-Proto: "https"` 헤더 포함
 
 #### `.github/workflows/generate-manifest.yml` — CI #1 워크플로
