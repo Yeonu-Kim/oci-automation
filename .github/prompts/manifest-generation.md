@@ -67,19 +67,23 @@ spec:
 
 ### {team}-server.yaml
 
+이슈의 `image_name` 필드(예: `my-service-prod/my-service-server`)에서 서버 이름을 추출합니다.
+경로의 마지막 부분(`my-service-server`)이 Deployment, Service, VirtualService의 `name`으로 사용됩니다.
+이하 `{server_name}`으로 표기합니다.
+
 **Deployment 필수 항목:**
 
 - `revisionHistoryLimit: 4`
 - `strategy.type: RollingUpdate` (maxSurge: 25%, maxUnavailable: 25%)
 - `nodeSelector: kubernetes.io/arch: arm64`
-- `serviceAccountName: {team}-server-{env}`
+- `serviceAccountName`: `{team}-server-{env}` 또는 `{team}` 중 하나 사용 (코드 분석 결과와 무관하게 `{team}`으로 통일해도 무방)
 - `resources.requests`: cpu와 memory 모두 지정
 - `resources.limits`: memory만 지정 (cpu limit 지정하지 않음)
 - probe 세 개 모두 필수: `livenessProbe`, `readinessProbe` (timeoutSeconds: 3, failureThreshold: 5), `startupProbe` (failureThreshold: 20)
-- 헬스체크 경로와 포트는 코드 분석 결과에서 파악한 값 사용
+- 헬스체크 경로와 포트는 **반드시 코드 분석 결과에서 파악한 값** 사용
 - 시크릿이 있으면 `envFrom.secretRef.name: {team}-{env}` 포함
 
-**Spring Boot 추가 항목:**
+**Spring Boot 추가 항목 (코드에서 Spring profiles 사용이 확인될 때만 추가):**
 
 ```yaml
 env:
@@ -92,7 +96,7 @@ env:
 **이미지 경로:**
 
 ```
-yny.ocir.io/ax1dvc8vmenm/{team}-{env}/{image_name}:1
+yny.ocir.io/ax1dvc8vmenm/{team}-{env}/{server_name}:1
 ```
 
 **Service:**
@@ -101,14 +105,14 @@ yny.ocir.io/ax1dvc8vmenm/{team}-{env}/{image_name}:1
 apiVersion: v1
 kind: Service
 metadata:
-  name: {team}-server
+  name: { server_name }
 spec:
   type: ClusterIP
   selector:
-    app: {team}-server
+    app: { server_name }
   ports:
     - port: 80
-      targetPort: {port}
+      targetPort: { port }
 ```
 
 **VirtualService:**
@@ -117,18 +121,18 @@ spec:
 apiVersion: networking.istio.io/v1alpha3
 kind: VirtualService
 metadata:
-  name: {team}-server
+  name: { server_name }
 spec:
   gateways:
     - istio-ingress/waffle-ingressgateway
     - mesh
   hosts:
-    - {domain}
+    - { domain }
   http:
     - route:
         - destination:
-            host: {team}-server
-      headers:            # prod에만 포함, dev에는 생략
+            host: { server_name }
+      headers: # prod에만 포함, dev에는 생략
         request:
           set:
             X-Forwarded-Proto: "https"
@@ -199,29 +203,29 @@ roleRef:
 
 ## 실제 서비스 예시 (few-shot)
 
-### airbnb — Spring Boot, 포트 8080, 헬스체크 `/check`
+### siksha — Spring Boot 서버(`/actuator/health`, 포트 8080) + ExternalSecret
 
-**argocd/airbnb-prod/app.yaml**
+**argocd/siksha-prod/app.yaml**
 
 ```yaml
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   namespace: argocd
-  name: airbnb-prod
+  name: siksha
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
-  project: airbnb
+  project: siksha
   destination:
     name: in-cluster
-    namespace: airbnb-prod
+    namespace: siksha-prod
   source:
     repoURL: https://github.com/wafflestudio/waffle-world-oci.git
     targetRevision: main
-    path: argocd/airbnb-prod
+    path: argocd/siksha-prod
     directory:
-      include: "airbnb-*.yaml"
+      include: "siksha-*.yaml"
   syncPolicy:
     automated:
       prune: true
@@ -230,20 +234,49 @@ spec:
       - CreateNamespace=true
 ```
 
-**argocd/airbnb-prod/airbnb-server.yaml**
+**argocd/siksha-dev/app.yaml**
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  namespace: argocd
+  name: siksha-dev
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: siksha
+  destination:
+    name: in-cluster
+    namespace: siksha-dev
+  source:
+    repoURL: https://github.com/wafflestudio/waffle-world-oci.git
+    targetRevision: main
+    path: argocd/siksha-dev
+    directory:
+      include: "siksha-*.yaml"
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+```
+
+**argocd/siksha-prod/siksha-spring-server.yaml**
 
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: airbnb-server
+  name: siksha-spring-server
   labels:
-    app: airbnb-server
+    app: siksha-spring-server
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: airbnb-server
+      app: siksha-spring-server
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -253,59 +286,57 @@ spec:
   template:
     metadata:
       labels:
-        app: airbnb-server
+        app: siksha-spring-server
     spec:
-      serviceAccountName: airbnb-server-prod
+      serviceAccountName: siksha
       nodeSelector:
         kubernetes.io/arch: arm64
       containers:
-        - image: yny.ocir.io/ax1dvc8vmenm/airbnb-prod/airbnb-server:1
-          name: airbnb-server
+        - image: yny.ocir.io/ax1dvc8vmenm/siksha-prod/siksha-spring-server:12
+          name: siksha-spring-server
           resources:
             requests:
-              cpu: 50m
+              cpu: 200m
               memory: 256Mi
             limits:
-              memory: 512Mi
+              memory: 1024Mi
           ports:
             - containerPort: 8080
-          env:
-            - name: SPRING_PROFILES_ACTIVE
-              value: "prod"
-            - name: JAVA_TOOL_OPTIONS
-              value: "-XX:MaxRAMPercentage=70.0"
           envFrom:
             - secretRef:
-                name: airbnb-prod
+                name: siksha-prod
           livenessProbe:
             httpGet:
-              path: /check
+              path: /actuator/health
               port: 8080
+            timeoutSeconds: 15
+            failureThreshold: 3
           readinessProbe:
             httpGet:
-              path: /check
+              path: /actuator/health
               port: 8080
-            timeoutSeconds: 3
+            timeoutSeconds: 15
             failureThreshold: 5
           startupProbe:
             httpGet:
-              path: /check
+              path: /actuator/health
               port: 8080
-            failureThreshold: 20
+            failureThreshold: 30
+            timeoutSeconds: 15
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: airbnb-server-prod
+  name: siksha
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: airbnb-server
+  name: siksha-spring-server
 spec:
   type: ClusterIP
   selector:
-    app: airbnb-server
+    app: siksha-spring-server
   ports:
     - port: 80
       targetPort: 8080
@@ -313,47 +344,203 @@ spec:
 apiVersion: networking.istio.io/v1alpha3
 kind: VirtualService
 metadata:
-  name: airbnb-server
+  name: siksha-spring-server
 spec:
   gateways:
     - istio-ingress/waffle-ingressgateway
     - mesh
   hosts:
-    - airbnb-api.wafflestudio.com
+    - siksha-server.wafflestudio.com
   http:
     - route:
         - destination:
-            host: airbnb-server
+            host: siksha-spring-server
       headers:
         request:
           set:
             X-Forwarded-Proto: "https"
 ```
 
-**argocd/airbnb-prod/airbnb-secret.yaml**
+**argocd/siksha-dev/siksha-spring-server.yaml**
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: siksha-spring-server
+  labels:
+    app: siksha-spring-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: siksha-spring-server
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+  revisionHistoryLimit: 4
+  template:
+    metadata:
+      labels:
+        app: siksha-spring-server
+    spec:
+      serviceAccountName: siksha
+      nodeSelector:
+        kubernetes.io/arch: arm64
+      containers:
+        - image: yny.ocir.io/ax1dvc8vmenm/siksha-dev/siksha-spring-server:100
+          name: siksha-spring-server
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              memory: 768Mi
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - secretRef:
+                name: siksha-dev
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            timeoutSeconds: 3
+            failureThreshold: 5
+          startupProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            failureThreshold: 30
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: siksha
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: siksha-spring-server
+spec:
+  type: ClusterIP
+  selector:
+    app: siksha-spring-server
+  ports:
+    - port: 80
+      targetPort: 8080
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: siksha-spring-server
+spec:
+  gateways:
+    - istio-ingress/waffle-ingressgateway
+    - mesh
+  hosts:
+    - siksha-server-dev.wafflestudio.com
+  http:
+    - route:
+        - destination:
+            host: siksha-spring-server
+```
+
+**argocd/siksha-prod/siksha-secret.yaml**
 
 ```yaml
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
-  name: airbnb-prod
+  name: siksha-prod
 spec:
   refreshInterval: 5m
   secretStoreRef:
     name: oci-vault
     kind: ClusterSecretStore
   target:
-    name: airbnb-prod
+    name: siksha-prod
     creationPolicy: Owner
     template:
       data:
         SPRING_DATASOURCE_URL: '{{ .raw | fromJson | dig "spring.datasource.url" "" }}'
         SPRING_DATASOURCE_USERNAME: '{{ .raw | fromJson | dig "spring.datasource.username" "" }}'
         SPRING_DATASOURCE_PASSWORD: '{{ .raw | fromJson | dig "spring.datasource.password" "" }}'
+        JWT_SECRET_KEY: '{{ .raw | fromJson | dig "jwt.secret-key" "" }}'
+        SLACK_TOKEN: '{{ .raw | fromJson | dig "slack.token" "" }}'
+        SLACK_CHANNEL: '{{ .raw | fromJson | dig "slack.channel" "" }}'
   data:
     - secretKey: raw
       remoteRef:
-        key: airbnb-prod
+        key: siksha-prod
+```
+
+**argocd/siksha-dev/siksha-secret.yaml**
+
+```yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: siksha-dev
+spec:
+  refreshInterval: 5m
+  secretStoreRef:
+    name: oci-vault
+    kind: ClusterSecretStore
+  target:
+    name: siksha-dev
+    creationPolicy: Owner
+    template:
+      data:
+        SPRING_DATASOURCE_URL: '{{ .raw | fromJson | dig "spring.datasource.url" "" }}'
+        SPRING_DATASOURCE_USERNAME: '{{ .raw | fromJson | dig "spring.datasource.username" "" }}'
+        SPRING_DATASOURCE_PASSWORD: '{{ .raw | fromJson | dig "spring.datasource.password" "" }}'
+        JWT_SECRET_KEY: '{{ .raw | fromJson | dig "jwt.secret-key" "" }}'
+        SLACK_TOKEN: '{{ .raw | fromJson | dig "slack.token" "" }}'
+        SLACK_CHANNEL: '{{ .raw | fromJson | dig "slack.channel" "" }}'
+  data:
+    - secretKey: raw
+      remoteRef:
+        key: siksha-dev
+```
+
+**argocd/platform-rbac/resources.yaml 추가분**
+
+```yaml
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: siksha-admins
+  namespace: siksha-dev
+subjects:
+  - kind: Group
+    name: ocid1.group.oc1..aaaaaaaazbytmrmafinbs7nehoht7uwwqunicbndhecurexiq7liprdrfvaq
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: admin
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: siksha-admins
+  namespace: siksha-prod
+subjects:
+  - kind: Group
+    name: ocid1.group.oc1..aaaaaaaazbytmrmafinbs7nehoht7uwwqunicbndhecurexiq7liprdrfvaq
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: admin
+  apiGroup: rbac.authorization.k8s.io
 ```
 
 ---
