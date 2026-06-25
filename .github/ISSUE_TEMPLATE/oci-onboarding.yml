@@ -54,6 +54,18 @@ body:
     validations:
       required: true
 
+  - type: dropdown
+    id: use_valkey
+    attributes:
+      label: Valkey (Redis) 사용 여부
+      description: Redis를 사용하는 경우 Valkey StatefulSet이 함께 생성됩니다.
+      options:
+        - "No"
+        - "Yes"
+      default: 0
+    validations:
+      required: true
+
   - type: textarea
     id: secret_keys
     attributes:
